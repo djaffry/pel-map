@@ -1,0 +1,19 @@
+[tools]
+node = "24"
+python = "3.11"
+
+[tasks.serve]
+description = "Serve the static site at http://localhost:8080"
+run = "python3 -m http.server 8080"
+
+[tasks.test]
+description = "Run the zero-dependency unit tests"
+run = "node --test test/*.test.mjs"
+
+[tasks.test-ui]
+description = "Run the DOM smoke test (needs: npm install)"
+run = "node scripts/dom-smoke.mjs"
+
+[tasks.check]
+description = "Run all tests (unit + UI smoke)"
+depends = ["test", "test-ui"]

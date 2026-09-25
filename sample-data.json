@@ -1,0 +1,45 @@
+[
+  { "name": "Val (VP)", "isPeopleLeader": true, "role": "VP", "location": "VIE" },
+
+  { "name": "Hanna (HO)", "isPeopleLeader": true, "role": "HO", "location": "VIE" },
+  { "name": "Hugo (Non-SE)", "isPeopleLeader": false, "role": "NSE", "location": "MUN" },
+  { "name": "Horia (Non-SE)", "isPeopleLeader": false, "role": "NSE", "location": "CLU" },
+
+  { "name": "Tea AT-lead", "isPeopleLeader": true, "role": "TA", "location": "VIE", "level": 3 },
+  { "name": "Tomas AT-lead", "isPeopleLeader": true, "role": "TA", "location": "LNZ", "level": 3 },
+  { "name": "Tina AT", "isPeopleLeader": false, "role": "TA", "location": "VIE", "level": 2 },
+  { "name": "Timo AT", "isPeopleLeader": false, "role": "TA", "location": "VIE", "level": 1 },
+  { "name": "Tanja AT", "isPeopleLeader": false, "role": "TA", "location": "LNZ", "level": 2 },
+  { "name": "Toni AT", "isPeopleLeader": false, "role": "TA", "location": "GRZ", "level": 1 },
+  { "name": "Thomas AT", "isPeopleLeader": false, "role": "TA", "location": "RIE", "level": 2 },
+  { "name": "Tara AT", "isPeopleLeader": false, "role": "TA", "location": "AMS", "level": 1 },
+  { "name": "Theo AT", "isPeopleLeader": false, "role": "TA", "location": "STP", "level": 1 },
+  { "name": "Tabea AT", "isPeopleLeader": false, "role": "TA", "location": "INS", "level": 2 },
+
+  { "name": "Sven AT-lead", "isPeopleLeader": true, "role": "SE", "location": "VIE", "level": 4 },
+  { "name": "Sara AT", "isPeopleLeader": false, "role": "SE", "location": "VIE", "level": 3 },
+  { "name": "Simon AT", "isPeopleLeader": false, "role": "SE", "location": "LNZ", "level": 2 },
+  { "name": "Sofia AT", "isPeopleLeader": false, "role": "SE", "location": "GRZ", "level": 1 },
+  { "name": "Stefan AT", "isPeopleLeader": false, "role": "SE", "location": "RIE", "level": 2 },
+
+  { "name": "Tom DE-lead", "isPeopleLeader": true, "role": "TA", "location": "MUN", "level": 3 },
+  { "name": "Tessa DE", "isPeopleLeader": false, "role": "TA", "location": "MUN", "level": 2 },
+  { "name": "Til DE", "isPeopleLeader": false, "role": "TA", "location": "HAM", "level": 1 },
+  { "name": "Trude DE", "isPeopleLeader": false, "role": "TA", "location": "FRA", "level": 2 },
+
+  { "name": "Silke DE-lead", "isPeopleLeader": true, "role": "SE", "location": "MUN", "level": 4 },
+  { "name": "Stan DE-lead", "isPeopleLeader": true, "role": "SE", "location": "HAM", "level": 4 },
+  { "name": "Suse DE", "isPeopleLeader": false, "role": "SE", "location": "MUN", "level": 3 },
+  { "name": "Sami DE", "isPeopleLeader": false, "role": "SE", "location": "MUN", "level": 2 },
+  { "name": "Sonja DE", "isPeopleLeader": false, "role": "SE", "location": "HAM", "level": 1 },
+  { "name": "Sepp DE", "isPeopleLeader": false, "role": "SE", "location": "KAR", "level": 2 },
+  { "name": "Svea DE", "isPeopleLeader": false, "role": "SE", "location": "KIE", "level": 1 },
+  { "name": "Said DE", "isPeopleLeader": false, "role": "SE", "location": "KOL", "level": 3 },
+  { "name": "Selin DE", "isPeopleLeader": false, "role": "SE", "location": "FRA", "level": 2 },
+
+  { "name": "Radu RO", "isPeopleLeader": false, "role": "TA", "location": "CLU", "level": 1 },
+  { "name": "Rares RO", "isPeopleLeader": false, "role": "SE", "location": "CLU" },
+
+  { "name": "Nils (Non-SE)", "isPeopleLeader": false, "role": "NSE", "location": "VIE" },
+  { "name": "Nadia (Non-SE)", "isPeopleLeader": false, "role": "NSE", "location": "MUN" }
+]

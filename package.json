@@ -1,0 +1,18 @@
+{
+  "name": "pel-map",
+  "version": "0.1.0",
+  "description": "PeL Map, a viewer for the People Leader (PeL) organization.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:ui": "node scripts/dom-smoke.mjs",
+    "serve": "python3 -m http.server 8080"
+  },
+  "keywords": [],
+  "author": "David Jaffry",
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^22.1.0"
+  }
+}

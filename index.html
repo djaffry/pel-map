@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PeL Map</title>
+    <meta
+      name="description"
+      content="PeL Map — a viewer for the People Leader (PeL) organization: see who leads whom in a clear, balanced layout."
+    />
+    <meta name="theme-color" content="#1e66f5" />
+    <meta property="og:title" content="PeL Map" />
+    <meta
+      property="og:description"
+      content="A viewer for the People Leader (PeL) organization."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="flash" class="flash" role="status" aria-live="polite"></div>
+
+    <main class="layout" id="layout">
+      <aside class="controls" id="controls">
+        <!-- Panel is ordered to match the task flow:
+             Setup (import) → Insights (results) → Refine → Balance (the action). -->
+
+        <!-- ── Setup: get people into the app ── -->
+        <p class="phase-label">Setup</p>
+        <section class="control-group">
+          <h2>Data</h2>
+          <label class="field">
+            <span>Upload people JSON</span>
+            <input type="file" id="file" accept="application/json,.json" />
+          </label>
+          <div class="btn-row">
+            <button id="loadSample" type="button" class="secondary block">Load example</button>
+          </div>
+          <hr class="group-divider" />
+          <span class="field-label">Export</span>
+          <div class="btn-row">
+            <button id="export" type="button" class="secondary block" title="Export the org as JSON data or as an image (PNG / SVG)">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M5 20h14" />
+              </svg>
+              Export…
+            </button>
+          </div>
+        </section>
+
+        <!-- ── Insights: read-only status of the current org ── -->
+        <p class="phase-label">Insights</p>
+        <section class="control-group summary-wrap">
+          <h2>Summary</h2>
+          <div id="summary"></div>
+        </section>
+
+        <section class="control-group capacity-wrap">
+          <h2>Leadership demand</h2>
+          <p class="hint">The <strong>minimum required</strong> people leaders — by BU and role — so no leader exceeds max span. <em>L#</em> = suggested seniority level for the new leader.</p>
+          <div id="capacity"></div>
+        </section>
+
+        <!-- ── Refine: post-hoc tuning & versioning ── -->
+        <p class="phase-label">Refine</p>
+        <!-- Fixed links: pins that survive Auto-rebalance -->
+        <section class="control-group">
+          <h2><span class="h2-icon" aria-hidden="true">🔒</span>Fixed links</h2>
+          <p class="hint">Lock the current structure so it survives Auto-rebalance, or clear all locks. Pin individual links by dragging a person onto a leader or toggling a connector's lock in the tree or list.</p>
+          <div class="btn-row">
+            <button id="lockAll" type="button" class="secondary">Lock all</button>
+            <button id="unlockAll" type="button" class="secondary">Unlock all</button>
+          </div>
+        </section>
+
+        <!-- Snapshots: named saved versions -->
+        <section class="control-group">
+          <h2>Snapshots</h2>
+          <p class="hint">Save the current hierarchy under a name, then switch back to it anytime without losing work.</p>
+          <div class="row snap-save-row">
+            <input type="text" id="snapshotName" class="snap-input" placeholder="Snapshot name…" />
+            <button id="saveSnapshot" type="button">Save</button>
+          </div>
+          <div id="snapshotList" class="snap-list"></div>
+          <div id="snapshotCompare" class="snap-compare" hidden>
+            <div class="row span-row">
+              <label class="field small">
+                <span>Compare from</span>
+                <select id="diffFrom"></select>
+              </label>
+              <label class="field small">
+                <span>to</span>
+                <select id="diffTo"></select>
+              </label>
+            </div>
+            <button id="compareSnapshots" type="button" class="secondary block">Compare changes</button>
+          </div>
+        </section>
+
+        <!-- ── Balance: the pivotal auto-balance action (kept last so the
+             Auto-rebalance button sits statically at the panel's end) ── -->
+        <p class="phase-label">Balance</p>
+        <section class="control-group">
+          <h2>Balancing</h2>
+          <div class="row span-row">
+            <label class="field small">
+              <span>Min span</span>
+              <input type="number" id="spanMin" min="1" value="3" />
+            </label>
+            <label class="field small">
+              <span>Max span</span>
+              <input type="number" id="spanMax" min="1" value="8" />
+            </label>
+          </div>
+          <label class="field">
+            <span>Balance priority</span>
+            <select id="balancePriority">
+              <option value="evenness">Evenness first</option>
+              <option value="location">Location first</option>
+            </select>
+          </label>
+          <label class="field check">
+            <input type="checkbox" id="hardLocation" />
+            <span>Hard location (leaders lead only their own location)</span>
+          </label>
+          <button id="rebalance" type="button" class="primary block">Auto-rebalance</button>
+        </section>
+      </aside>
+
+      <section class="tree-panel">
+        <div class="tree-toolbar">
+          <div class="toolbar-left">
+            <div class="tb-group" aria-label="Panel">
+              <button id="togglePanel" type="button" class="toggle" aria-expanded="true">‹ Hide</button>
+            </div>
+            <span class="tb-divider" aria-hidden="true"></span>
+            <div class="tb-group" role="group" aria-label="Edit">
+              <button id="addPerson" type="button" class="toggle add-toggle" title="Add person (A)">＋ Add</button>
+              <div class="history-group" role="group" aria-label="Edit history">
+                <button id="undo" type="button" class="icon-btn" title="Undo (⌘/Ctrl+Z)" aria-label="Undo" disabled>↶</button>
+                <button id="redo" type="button" class="icon-btn" title="Redo (⌘/Ctrl+⇧+Z)" aria-label="Redo" disabled>↷</button>
+              </div>
+            </div>
+            <span class="tb-divider" aria-hidden="true"></span>
+            <div class="tb-group" role="group" aria-label="View">
+              <div class="view-switch" role="group" aria-label="View mode">
+                <button id="viewTree" type="button" class="view-btn" aria-pressed="true">Tree</button>
+                <button id="viewList" type="button" class="view-btn" aria-pressed="false">List</button>
+              </div>
+              <div id="collapseGroup" class="history-group" role="group" aria-label="Expand or collapse rows" hidden>
+                <button id="expandAll" type="button" class="toggle">Expand</button>
+                <button id="collapseAll" type="button" class="toggle">Collapse</button>
+              </div>
+            </div>
+          </div>
+          <div class="zoom">
+            <button id="zoomOut" type="button" class="icon-btn" title="Zoom out">−</button>
+            <input type="range" id="zoomRange" min="5" max="150" step="5" value="100" aria-label="Zoom" />
+            <button id="zoomIn" type="button" class="icon-btn" title="Zoom in">+</button>
+            <span id="zoomLabel" class="zoom-label">100%</span>
+            <button id="zoomFit" type="button" class="secondary small-btn" title="Zoom to fit the whole tree in view">Fit</button>
+            <button id="zoomReset" type="button" class="secondary small-btn" title="Reset zoom to 100%">Reset</button>
+            <button id="helpBtn" type="button" class="icon-btn" title="Help, legend & keyboard shortcuts (?)" aria-label="Help, legend and keyboard shortcuts">?</button>
+          </div>
+        </div>
+        <div class="tree-viewport">
+          <ul id="tree" class="tree"></ul>
+        </div>
+        <div id="popupBackdrop" class="popup-backdrop" hidden></div>
+        <div id="inlinePopup" class="inline-popup" hidden></div>
+        <div id="diffBackdrop" class="popup-backdrop" hidden></div>
+        <div id="diffModal" class="diff-modal" hidden role="dialog" aria-modal="true" aria-label="Snapshot comparison">
+          <button id="diffClose" type="button" class="diff-close" title="Close" aria-label="Close">✕</button>
+          <div class="diff-tabs" role="tablist">
+            <button id="diffTabSummary" type="button" class="diff-tab is-active" role="tab" aria-selected="true">Summary</button>
+            <button id="diffTabTree" type="button" class="diff-tab" role="tab" aria-selected="false">Tree</button>
+          </div>
+          <div id="diffBody" class="diff-body">
+            <div id="diffSummaryPane" class="diff-pane" role="tabpanel"></div>
+            <div id="diffTreePane" class="diff-pane" role="tabpanel" hidden></div>
+          </div>
+        </div>
+
+        <div id="helpBackdrop" class="popup-backdrop" hidden></div>
+        <div id="helpModal" class="help-modal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+          <button id="helpClose" type="button" class="diff-close" title="Close" aria-label="Close">✕</button>
+          <h2 id="helpTitle" class="help-title">PeL Map — quick guide</h2>
+          <div class="help-body">
+            <section class="help-section">
+              <h3>Getting started</h3>
+              <ul class="help-list">
+                <li>Load people via <strong>Load example</strong> or upload a file (left panel).</li>
+                <li>Set <strong>Min / Max span</strong> and click <strong>Auto-rebalance</strong> to build the tree.</li>
+                <li><strong>Click a card</strong> to edit or delete a person; <strong>＋</strong> on a leader adds a report under it.</li>
+                <li><strong>Right-click a card</strong> (or its <strong>⋯</strong>) for all its actions — edit, add, flag, fix link.</li>
+                <li><strong>Drag</strong> a person onto a leader to move &amp; <em>pin</em> them; drag empty canvas to pan.</li>
+              </ul>
+            </section>
+            <section class="help-section">
+              <h3>Legend — roles</h3>
+              <ul class="help-legend">
+                <li><span class="help-swatch role-VP"></span>VP — head, cross-BU</li>
+                <li><span class="help-swatch role-HO"></span>HO — single stream lead</li>
+                <li><span class="help-swatch role-TA"></span>TA — stream role (levels 1–3)</li>
+                <li><span class="help-swatch role-SE"></span>SE — stream role (levels 1–4)</li>
+                <li><span class="help-swatch role-NSE"></span>NSE — non-SE, marked for deletion</li>
+              </ul>
+            </section>
+            <section class="help-section">
+              <h3>Legend — markers &amp; halos</h3>
+              <ul class="help-list compact">
+                <li><strong>📌 / 🔒 fixed</strong> — pinned to a manager; survives Auto-rebalance.</li>
+                <li><strong>⚠ dup</strong> — another person shares this exact name.</li>
+                <li><strong class="help-halo error">Red halo / outline</strong> — a constraint error (shown on the card).</li>
+                <li><strong class="help-halo warn">Amber outline</strong> — a warning (e.g. span below min).</li>
+                <li><strong class="help-halo flag">Orange halo</strong> — you flagged this node (⚑); an optional note shows in the Summary overview.</li>
+                <li><strong>Capacity pips</strong> — filled = current directs, dashed = open slots (drop targets) up to max span.</li>
+              </ul>
+            </section>
+            <section class="help-section">
+              <h3>Keyboard shortcuts</h3>
+              <ul class="help-keys">
+                <li><kbd>A</kbd><span>Add a person</span></li>
+                <li><kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd><span>Undo</span></li>
+                <li><kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd><span>Redo</span></li>
+                <li><kbd>Ctrl</kbd>+<kbd>Y</kbd><span>Redo</span></li>
+                <li><kbd>Ctrl/⌘</kbd>+<kbd>wheel</kbd><span>Zoom the canvas</span></li>
+                <li><kbd>?</kbd><span>Open this help</span></li>
+                <li><kbd>Esc</kbd><span>Close popups / dialogs</span></li>
+              </ul>
+            </section>
+          </div>
+        </div>
+
+        <div id="welcomeHint" class="welcome-hint" hidden role="dialog" aria-label="Welcome">
+          <p>New here? The example org is already loaded. The left panel follows the flow <strong>Setup → Insights → Refine → Balance</strong>.</p>
+          <ul class="welcome-tips">
+            <li><strong>Click</strong> a card to edit or delete it.</li>
+            <li><strong>Right-click</strong> (or the <span class="welcome-q">⋯</span>) for its actions.</li>
+            <li><strong>Drag</strong> a person onto a leader to move &amp; pin them.</li>
+          </ul>
+          <p class="welcome-more">Press <span class="welcome-q">?</span> anytime for the full legend &amp; shortcuts.</p>
+          <button id="welcomeDismiss" type="button" class="welcome-dismiss">Got it</button>
+        </div>
+
+        <div id="exportBackdrop" class="popup-backdrop" hidden></div>
+        <div id="exportModal" class="app-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="exportTitle"></div>
+
+        <div id="confirmBackdrop" class="popup-backdrop" hidden></div>
+        <div id="confirmModal" class="app-dialog confirm-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="confirmTitle"></div>
+      </section>
+    </main>
+
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>
