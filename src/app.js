@@ -62,15 +62,18 @@ function pushHistory() {
   state.future = [];
   markDirty();
 }
+function syncSpanInputs() {
+  const min = byId("spanMin");
+  const max = byId("spanMax");
+  if (min) min.value = String(state.span.min);
+  if (max) max.value = String(state.span.max);
+}
 function restoreSnapshot(snap) {
   state.span = snap.span ? { ...snap.span } : { ...state.span };
   state.pins = (snap.pins ?? []).map((p) => ({ ...p }));
   state.flags = normalizeFlags(snap.flags);
   state.result = resultFor(deserializeTree(snap.tree));
-  const min = byId("spanMin");
-  const max = byId("spanMax");
-  if (min) min.value = String(state.span.min);
-  if (max) max.value = String(state.span.max);
+  syncSpanInputs();
 }
 
 // The live editable state is the TREE plus {span,pins,flags}; a named snapshot is
@@ -99,8 +102,7 @@ function applyState(snapState) {
   state.pins = clone.pins;
   state.flags = clone.flags;
   state.dirty = false;
-  byId("spanMin").value = String(state.span.min);
-  byId("spanMax").value = String(state.span.max);
+  syncSpanInputs();
   if (clone.tree) {
     // Restore the exact stored structure — snapshots never rebalance.
     state.result = resultFor(deserializeTree(clone.tree));
@@ -672,30 +674,95 @@ function onDrop(draggedId, targetId) {
 
 // Importing fresh data (sample or file) preserves the current hierarchy as a
 // snapshot first (so nothing is silently lost), then adopts the imported data as
-// a new, active snapshot named after the source file.
+// a new, active snapshot named after the source file. A structured export (one
+// carrying a serialized `tree`) is restored EXACTLY and never rebalanced; only a
+// bare people list — which has no structure to preserve — is built (§6/§8).
 function loadPeople(raw, sourceLabel) {
+  // A structured export (one carrying a serialized `tree`) is restored exactly;
+  // anything else is built from its people list (bare array, or the `people`
+  // mirror of a structured export whose tree is missing/unusable).
+  const structured = structuredPayload(raw);
+  if (structured) return loadStructured(structured, sourceLabel);
+  return loadFlatPeople(peopleListFrom(raw), sourceLabel);
+}
+
+// A structured import is an object carrying a serialized `tree` (plus optional
+// span/pins/flags). Returns it when recognised, otherwise null (bare array etc.).
+function structuredPayload(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (!raw.tree || typeof raw.tree !== "object" || !raw.tree.person) return null;
+  return raw;
+}
+
+// Extract a flat people list from anything importable: a bare array, or the
+// `people` mirror of a structured export. Unknown shapes pass through so
+// `validatePeople` can report a clear "not a JSON array" error.
+function peopleListFrom(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object" && Array.isArray(raw.people)) return raw.people;
+  return raw;
+}
+
+// Shared import lifecycle: snapshot the outgoing work, then clear undo history
+// and any open popup before the incoming data replaces the tree.
+function beginImport() {
+  preserveWorkBeforeImport();
+  state.history = [];
+  state.future = [];
+  closePopup();
+}
+// Adopt the imported data as a new active snapshot and show it.
+function finishImport(sourceLabel) {
+  const name = adoptImportedSnapshot(sourceLabel);
+  present();
+  centerViewport();
+  return name;
+}
+
+// Restore an exported hierarchy as-is. This is the fix for "autobalance on
+// import": importing a structured export must NOT run buildHierarchy (§6/§8).
+function loadStructured(payload, sourceLabel) {
+  const root = deserializeTree(payload.tree);
+  if (!root) return flash(`No hierarchy found in ${sourceLabel}.`, "error");
+
+  beginImport();
+  if (payload.span && Number.isFinite(payload.span.min) && Number.isFinite(payload.span.max)) {
+    state.span = { min: payload.span.min, max: payload.span.max };
+  }
+  if (Array.isArray(payload.pins)) {
+    state.pins = payload.pins
+      .filter((p) => p && typeof p.parent === "string" && typeof p.child === "string")
+      .map((p) => ({ parent: p.parent, child: p.child }));
+  }
+  if (payload.flags !== undefined) state.flags = normalizeFlags(payload.flags);
+
+  // Restore the stored structure exactly — no buildHierarchy on import.
+  state.result = resultFor(root);
+  syncPeople();
+  syncSpanInputs();
+
+  const name = finishImport(sourceLabel);
+  flash(`Imported "${name}" — structure preserved.`, "ok");
+}
+
+// A bare people list has no reporting structure, so it is built once on load
+// (sample data / legacy flat exports). This is the only import path that builds.
+function loadFlatPeople(raw, sourceLabel) {
   const { people, errors, warnings } = validatePeople(raw);
   if (errors.length) {
     flash(`${errors.length} invalid record(s) skipped from ${sourceLabel}.`, "warn");
   }
   if (warnings.length) flash(`${warnings.length} warning(s).`, "warn");
 
-  preserveWorkBeforeImport();
-
+  beginImport();
   state.people = people;
-  state.history = [];
-  state.future = [];
-  closePopup();
   const keepInPlace = captureMarkedPlacements();
   state.result = buildHierarchy(state.people, {
     span: state.span, pins: state.pins, keepInPlace,
     balancePriority: state.balancePriority, hardLocation: state.hardLocation,
   });
 
-  const name = adoptImportedSnapshot(sourceLabel);
-
-  present();
-  centerViewport();
+  const name = finishImport(sourceLabel);
   if (!errors.length && !warnings.length) {
     flash(`Imported ${people.length} people into snapshot "${name}".`, "ok");
   }
@@ -813,11 +880,32 @@ function runExport(opts) {
   else exportImage(opts);
 }
 
+// Shape of a structured JSON export: a serialized `tree` (so re-import restores
+// the structure without rebalancing — §8) plus a flat `people` mirror and config.
+function buildExportPayload({ tree, people, span, pins, flags }) {
+  return {
+    format: "pel-map",
+    version: 1,
+    tree: tree ?? null,
+    people: people ?? [],
+    span: span ? { ...span } : { ...DEFAULT_SPAN },
+    pins: Array.isArray(pins) ? pins.map((p) => ({ ...p })) : [],
+    flags: normalizeFlags(flags),
+  };
+}
+
 function exportJson({ filename, minified }) {
-  const people = state.result?.root ? toPeople(state.result.root) : state.people;
+  const root = state.result?.root ?? null;
   const name = safeFilename(filename, "people.json", ".json");
   state.exportPrefs.json = { filename: name, minified: !!minified };
-  const json = JSON.stringify(people, null, minified ? 0 : 2);
+  const payload = buildExportPayload({
+    tree: serializeTree(root),
+    people: root ? toPeople(root) : state.people,
+    span: state.span,
+    pins: state.pins,
+    flags: state.flags,
+  });
+  const json = JSON.stringify(payload, null, minified ? 0 : 2);
   const blob = new Blob([json], { type: "application/json" });
   triggerDownload(blob, name);
   persist();
@@ -941,15 +1029,22 @@ function snapshotNodeCount(snap) {
 
 function exportSnapshotJson(snap) {
   if (!snap) return;
-  const tree = snap.state?.tree;
+  const tree = snap.state?.tree && snap.state.tree.person ? snap.state.tree : null;
   const fallbackPeople = Array.isArray(snap.state?.people) ? snap.state.people : [];
   let people = fallbackPeople;
-  if (tree && tree.person) {
+  if (tree) {
     try { people = toPeople(deserializeTree(tree)); }
     catch { people = fallbackPeople; }
   }
+  const payload = buildExportPayload({
+    tree,
+    people,
+    span: snap.state?.span,
+    pins: snap.state?.pins,
+    flags: snap.state?.flags,
+  });
   const name = safeFilename(snap.name, "snapshot", ".json");
-  triggerDownload(new Blob([JSON.stringify(people, null, 2)], { type: "application/json" }), name);
+  triggerDownload(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), name);
   flash(`Exported "${snap.name}" as ${name}.`, "ok");
 }
 
@@ -1702,8 +1797,7 @@ function restoreSavedTreeOrPeople(saved) {
 }
 
 function syncControlValues() {
-  byId("spanMin").value = String(state.span.min);
-  byId("spanMax").value = String(state.span.max);
+  syncSpanInputs();
   byId("balancePriority").value = state.balancePriority;
   byId("hardLocation").checked = state.hardLocation;
   applyZoom();
