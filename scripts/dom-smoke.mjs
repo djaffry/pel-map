@@ -331,13 +331,13 @@ if (changedNodes.length < 1) throw new Error("expected at least one changed node
   if (!confirmCard.querySelector(".confirm-ok.danger")) throw new Error("confirm dialog must render a danger confirm button");
   if (!confirmCard.querySelector(".confirm-cancel")) throw new Error("confirm dialog must render a cancel button");
 
-  // The balance-priority control must exist with both modes.
-  if (!/id="balancePriority"/.test(html)) throw new Error('index.html missing id="balancePriority" select');
-  if (!/value="location"/.test(html) || !/value="evenness"/.test(html)) {
-    throw new Error("balancePriority select must offer evenness and location");
-  }
-  // The hard-location toggle must exist.
-  if (!/id="hardLocation"/.test(html)) throw new Error('index.html missing id="hardLocation" checkbox');
+  // The balancer UI has been removed — its controls must NOT be present.
+  if (/id="balancePriority"/.test(html)) throw new Error('index.html should no longer contain the balancePriority select');
+  if (/id="hardLocation"/.test(html)) throw new Error('index.html should no longer contain the hardLocation checkbox');
+  if (/id="rebalance"/.test(html)) throw new Error('index.html should no longer contain the Auto-rebalance button');
+  if (/id="loadSample"/.test(html)) throw new Error('index.html should no longer contain the Load example button');
+  // The span inputs remain (they feed the SPAN_MAX / SPAN_MIN constraint checks).
+  if (!/id="spanMin"/.test(html) || !/id="spanMax"/.test(html)) throw new Error('index.html must keep the span inputs');
 
   // Build an SVG wrapping the freshly rendered tree; must be valid, sized markup.
   render(targets, buildHierarchy(people, { span }), {});

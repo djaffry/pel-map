@@ -1,6 +1,6 @@
-import { DEFAULT_SPAN, isMarked } from "./model.js";
+import { DEFAULT_SPAN, compareBySeniority } from "./model.js";
 import { validatePeople } from "./validate.js";
-import { buildHierarchy, computeMetrics, emptyMetrics } from "./balance.js";
+import { computeMetrics, emptyMetrics } from "./balance.js";
 import { checkTree, checkMove } from "./constraints.js";
 import { planCapacity } from "./capacity.js";
 import {
@@ -111,7 +111,7 @@ function applyState(snapState) {
   }
   const { people } = validatePeople(clone.people);
   state.people = people;
-  rebuild();
+  buildFromPeople();
 }
 function backupWorkingDraft() {
   const existing = state.snapshots.find((s) => s.name === WORKING_DRAFT_NAME);
@@ -241,9 +241,9 @@ function loadPersisted() {
 
 // The TREE (state.result.root) is the editable source of truth for structure.
 // `state.people` is a synced, read-only mirror (toPeople) kept for the pin
-// dropdowns, duplicate detection, export, etc. The auto-balancer runs ONLY on
-// an explicit user action (Auto-rebalance) or when fresh data is loaded — every
-// other edit mutates the tree in place and calls `refresh()`, never `rebuild()`.
+// dropdowns, duplicate detection, export, etc. Imports restore the tree stored
+// in the JSON; a structure-less people list is placed in a flat tree once. Every
+// edit mutates the tree in place and calls `refresh()` — nothing rebalances.
 
 function syncPeople() {
   state.people = state.result?.root ? toPeople(state.result.root) : [];
@@ -255,29 +255,21 @@ function present() {
   refreshSnapshotUI();
   persist();
 }
-function rebuild() {
+// Build a flat, unbalanced tree from a bare people list (one with no stored
+// structure): the most senior person (VP → HO → …) becomes the root and everyone
+// else is a direct report. No balancing — the user arranges the tree manually.
+function flatTreeFrom(people) {
+  if (!people?.length) return null;
+  const [rootPerson, ...rest] = [...people].sort(compareBySeniority);
+  const root = makeNode({ ...rootPerson });
+  for (const p of rest) attach(root, makeNode({ ...p }));
+  return root;
+}
+function buildFromPeople() {
   closePopup();
-  const keepInPlace = captureMarkedPlacements();
-  state.result = buildHierarchy(state.people, {
-    span: state.span,
-    pins: state.pins,
-    keepInPlace,
-    balancePriority: state.balancePriority,
-    hardLocation: state.hardLocation,
-  });
+  state.result = resultFor(flatTreeFrom(state.people));
   present();
   centerViewport();
-}
-function captureMarkedPlacements() {
-  const map = {};
-  const root = state.result?.root;
-  if (!root) return map;
-  walk(root, (n) => {
-    if (!isMarked(n.person) || !n.parentId) return;
-    const parent = findById(root, n.parentId);
-    if (parent) map[n.person.name] = parent.person.name;
-  });
-  return map;
 }
 function resultFor(root) {
   const metrics = root ? computeMetrics(root) : emptyMetrics();
@@ -406,43 +398,6 @@ async function onEditFlagComment(name) {
   if (trimmed) flag.comment = trimmed;
   else delete flag.comment;
   refresh();
-}
-
-// Auto-rebalance is the only user-triggered balancer run.
-function onRebalance() {
-  if (!state.result?.root) return flash("Nothing to rebalance yet.", "warn");
-  pushHistory();
-  rebuild();
-  flash("Auto-rebalanced.", "ok");
-}
-
-// Switches evenness-first vs location-first layout. It is NOT a content edit, so
-// it re-runs the balancer (rebuild) to apply the new layout immediately — the
-// user is A/B testing which lays out better. With no tree yet it just stores the
-// preference.
-function onBalanceModeChange() {
-  const sel = byId("balancePriority");
-  const mode = sel?.value === "location" ? "location" : "evenness";
-  if (mode === state.balancePriority) return;
-  state.balancePriority = mode;
-  if (!state.result?.root) { persist(); return; }
-  pushHistory();
-  rebuild();
-  flash(mode === "location" ? "Balancing by location first." : "Balancing by evenness first.", "ok");
-}
-
-// When on, every people-leader below the HO may only lead its own location (the
-// balancer builds location-pure subtrees; checkTree/checkMove enforce it). Like
-// the balance-priority toggle it re-runs the balancer to apply immediately.
-function onHardLocationChange() {
-  const box = byId("hardLocation");
-  const on = !!box?.checked;
-  if (on === state.hardLocation) return;
-  state.hardLocation = on;
-  if (!state.result?.root) { persist(); return; }
-  pushHistory();
-  rebuild();
-  flash(on ? "Hard location on: leaders lead only their own location." : "Hard location off.", "ok");
 }
 
 function nodeById(id) {
@@ -745,8 +700,9 @@ function loadStructured(payload, sourceLabel) {
   flash(`Imported "${name}" — structure preserved.`, "ok");
 }
 
-// A bare people list has no reporting structure, so it is built once on load
-// (sample data / legacy flat exports). This is the only import path that builds.
+// A bare people list has no reporting structure, so it is placed once in a flat
+// tree (most-senior person as root, everyone else a direct report). No
+// balancing — the user arranges it manually afterwards.
 function loadFlatPeople(raw, sourceLabel) {
   const { people, errors, warnings } = validatePeople(raw);
   if (errors.length) {
@@ -756,11 +712,7 @@ function loadFlatPeople(raw, sourceLabel) {
 
   beginImport();
   state.people = people;
-  const keepInPlace = captureMarkedPlacements();
-  state.result = buildHierarchy(state.people, {
-    span: state.span, pins: state.pins, keepInPlace,
-    balancePriority: state.balancePriority, hardLocation: state.hardLocation,
-  });
+  state.result = resultFor(flatTreeFrom(people));
 
   const name = finishImport(sourceLabel);
   if (!errors.length && !warnings.length) {
@@ -808,8 +760,6 @@ async function onFile(ev) {
 function onEmptyStateAction(e) {
   const btn = e.target.closest?.("[data-empty-action]");
   if (!btn) return;
-  const action = btn.getAttribute("data-empty-action");
-  if (action === "sample") { loadSample(); return; }
   // Upload lives in the controls panel — make sure it's visible first.
   if (byId("layout").classList.contains("collapsed")) togglePanel();
   const target = byId("file");
@@ -817,18 +767,8 @@ function onEmptyStateAction(e) {
   target.focus();
 }
 
-async function loadSample() {
-  try {
-    const raw = await fetch("./sample-data.json").then((r) => r.json());
-    loadPeople(raw, "sample-data.json");
-  } catch (e) {
-    flash(`Could not load example: ${e.message}`, "error");
-  }
-}
-
-// Span bounds feed the constraint checks (SPAN_MAX/MIN) and the balancer. We
-// re-check constraints against the new span but do NOT rebalance — the user
-// applies a new layout explicitly via Auto-rebalance.
+// Span bounds feed the constraint checks (SPAN_MAX/MIN). Changing them re-checks
+// constraints against the current tree — it never rebalances.
 function onSpanChange() {
   const min = parseInt(byId("spanMin").value, 10);
   const max = parseInt(byId("spanMax").value, 10);
@@ -1584,13 +1524,9 @@ function wire() {
 
 function wirePrimaryControls() {
   byId("file").addEventListener("change", onFile);
-  byId("loadSample").addEventListener("click", loadSample);
   byId("tree").addEventListener("click", onEmptyStateAction);
   byId("spanMin").addEventListener("change", onSpanChange);
   byId("spanMax").addEventListener("change", onSpanChange);
-  byId("balancePriority").addEventListener("change", onBalanceModeChange);
-  byId("hardLocation").addEventListener("change", onHardLocationChange);
-  byId("rebalance").addEventListener("click", onRebalance);
   byId("undo").addEventListener("click", onUndo);
   byId("redo").addEventListener("click", onRedo);
   byId("export").addEventListener("click", openExportDialog);
@@ -1697,8 +1633,8 @@ function restoreInitialState() {
   syncControlValues();
 
   if (!saved) {
-    rebuild();
-    loadSample();
+    // First run — nothing persisted. Render the empty state; the user uploads data.
+    buildFromPeople();
     return;
   }
 
@@ -1707,14 +1643,13 @@ function restoreInitialState() {
     present();
     centerViewport();
   } else {
-    rebuild();
+    buildFromPeople();
   }
   flash(`Restored ${state.people.length} people from your last session.`, "ok");
 }
 
 function applyPersistedState(saved) {
   restoreSavedSpan(saved);
-  restoreSavedBalancerOptions(saved);
   restoreSavedCollections(saved);
   restoreSavedExportPrefs(saved);
   restoreSavedView(saved);
@@ -1727,13 +1662,6 @@ function restoreSavedSpan(saved) {
   if (span && Number.isFinite(span.min) && Number.isFinite(span.max)) {
     state.span = { min: span.min, max: span.max };
   }
-}
-
-function restoreSavedBalancerOptions(saved) {
-  if (["location", "evenness"].includes(saved.balancePriority)) {
-    state.balancePriority = saved.balancePriority;
-  }
-  if (typeof saved.hardLocation === "boolean") state.hardLocation = saved.hardLocation;
 }
 
 function restoreSavedCollections(saved) {
@@ -1798,8 +1726,6 @@ function restoreSavedTreeOrPeople(saved) {
 
 function syncControlValues() {
   syncSpanInputs();
-  byId("balancePriority").value = state.balancePriority;
-  byId("hardLocation").checked = state.hardLocation;
   applyZoom();
 }
 

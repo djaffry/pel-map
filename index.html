@@ -33,9 +33,6 @@
             <span>Upload people JSON</span>
             <input type="file" id="file" accept="application/json,.json" />
           </label>
-          <div class="btn-row">
-            <button id="loadSample" type="button" class="secondary block">Load example</button>
-          </div>
           <hr class="group-divider" />
           <span class="field-label">Export</span>
           <div class="btn-row">
@@ -65,10 +62,10 @@
 
         <!-- ── Refine: post-hoc tuning & versioning ── -->
         <p class="phase-label">Refine</p>
-        <!-- Fixed links: pins that survive Auto-rebalance -->
+        <!-- Fixed links: pins that mark reporting lines as fixed -->
         <section class="control-group">
           <h2><span class="h2-icon" aria-hidden="true">🔒</span>Fixed links</h2>
-          <p class="hint">Lock the current structure so it survives Auto-rebalance, or clear all locks. Pin individual links by dragging a person onto a leader or toggling a connector's lock in the tree or list.</p>
+          <p class="hint">Mark reporting lines as fixed, or clear all locks. Pin individual links by dragging a person onto a leader or toggling a connector's lock in the tree or list.</p>
           <div class="btn-row">
             <button id="lockAll" type="button" class="secondary">Lock all</button>
             <button id="unlockAll" type="button" class="secondary">Unlock all</button>
@@ -99,11 +96,11 @@
           </div>
         </section>
 
-        <!-- ── Balance: the pivotal auto-balance action (kept last so the
-             Auto-rebalance button sits statically at the panel's end) ── -->
-        <p class="phase-label">Balance</p>
+        <!-- ── Span bounds: feed the SPAN_MAX / SPAN_MIN constraint checks ── -->
+        <p class="phase-label">Span</p>
         <section class="control-group">
-          <h2>Balancing</h2>
+          <h2>Span of control</h2>
+          <p class="hint">Target min / max direct reports per leader. Used to flag over- and under-span leaders in the Summary — changing it re-checks the current tree, it never moves anyone.</p>
           <div class="row span-row">
             <label class="field small">
               <span>Min span</span>
@@ -114,18 +111,6 @@
               <input type="number" id="spanMax" min="1" value="8" />
             </label>
           </div>
-          <label class="field">
-            <span>Balance priority</span>
-            <select id="balancePriority">
-              <option value="evenness">Evenness first</option>
-              <option value="location">Location first</option>
-            </select>
-          </label>
-          <label class="field check">
-            <input type="checkbox" id="hardLocation" />
-            <span>Hard location (leaders lead only their own location)</span>
-          </label>
-          <button id="rebalance" type="button" class="primary block">Auto-rebalance</button>
         </section>
       </aside>
 
@@ -191,8 +176,8 @@
             <section class="help-section">
               <h3>Getting started</h3>
               <ul class="help-list">
-                <li>Load people via <strong>Load example</strong> or upload a file (left panel).</li>
-                <li>Set <strong>Min / Max span</strong> and click <strong>Auto-rebalance</strong> to build the tree.</li>
+                <li>Upload a people/org <strong>JSON</strong> file (left panel) — a structured export restores its tree exactly.</li>
+                <li>Set <strong>Min / Max span</strong> to flag over- and under-span leaders in the Summary.</li>
                 <li><strong>Click a card</strong> to edit or delete a person; <strong>＋</strong> on a leader adds a report under it.</li>
                 <li><strong>Right-click a card</strong> (or its <strong>⋯</strong>) for all its actions — edit, add, flag, fix link.</li>
                 <li><strong>Drag</strong> a person onto a leader to move &amp; <em>pin</em> them; drag empty canvas to pan.</li>
@@ -211,7 +196,7 @@
             <section class="help-section">
               <h3>Legend — markers &amp; halos</h3>
               <ul class="help-list compact">
-                <li><strong>📌 / 🔒 fixed</strong> — pinned to a manager; survives Auto-rebalance.</li>
+                <li><strong>📌 / 🔒 fixed</strong> — a fixed link: this reporting line is pinned to its manager.</li>
                 <li><strong>⚠ dup</strong> — another person shares this exact name.</li>
                 <li><strong class="help-halo error">Red halo / outline</strong> — a constraint error (shown on the card).</li>
                 <li><strong class="help-halo warn">Amber outline</strong> — a warning (e.g. span below min).</li>

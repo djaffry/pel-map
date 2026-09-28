@@ -234,14 +234,13 @@ export function buildExportDialog(spec = {}) {
 
 function buildEmptyState() {
   const actions = el("div", { class: "empty-state-actions" }, [
-    el("button", { type: "button", class: "primary", "data-empty-action": "sample" }, "Load example"),
-    el("button", { type: "button", class: "secondary", "data-empty-action": "upload" }, "Upload file"),
+    el("button", { type: "button", class: "primary", "data-empty-action": "upload" }, "Upload file"),
   ]);
   const hint = el("p", { class: "empty-state-hint" });
-  hint.append("Or press ", el("kbd", {}, "A"), " to add a person. Then set the span and click ", el("strong", {}, "Auto-rebalance"), " to build the tree.");
+  hint.append("Or press ", el("kbd", {}, "A"), " to add a person and build the tree by hand.");
   return el("div", { class: "empty-state" }, [
     el("h2", {}, "No people loaded"),
-    el("p", {}, "Build a balanced org tree: start from the example data, or upload a JSON array of people."),
+    el("p", {}, "Upload a people/org JSON file — a structured export restores its tree exactly."),
     actions,
     hint,
   ]);
@@ -483,7 +482,7 @@ function appendCardHeader(card, node, ctx, cardState) {
   const lvl = levelOf(p);
   const marked = isMarked(p);
   const roleText = marked ? "Non-SE" : (lvl ? `${p.role} L${lvl}` : p.role);
-  const roleSuffix = marked ? "marked" : (p.isPeopleLeader ? "leader" : "IC");
+  const roleSuffix = marked ? "for deletion" : (p.isPeopleLeader ? "leader" : "IC");
   const kicker = el("div", { class: "kicker" }, `${roleText} · ${roleSuffix}`);
   const flags = el("span", { class: "flags" });
   if (pinnedTo) flags.appendChild(el("span", { class: "pin-flag", title: `Fixed to ${pinnedTo}` }, "📌 fixed"));
@@ -746,7 +745,7 @@ function buildStats(m) {
   add("people", m.people, "Total number of people in the org (people leaders and individual contributors combined).");
   add("leaders", m.leaders, "People leaders — nodes that may have direct reports (VP, HOs and stream leads).");
   add("ICs", m.ics, "Individual contributors — leaf nodes with no direct reports.");
-  if (m.marked) add("marked", m.marked, "Non-SE people marked for deletion — kept in the tree but excluded from balancing, constraints and span metrics.");
+  if (m.marked) add("Non-SE", m.marked, "Non-SE people (role NSE), kept in the tree but excluded from constraints and span metrics — distinct from flagged (⚑) people.");
   add("depth", m.depth, "Depth of the tree: the number of levels from the VP at the top down to the deepest report.");
   add("span min/max", `${m.span.min}/${m.span.max}`, "Smallest and largest number of direct reports across all leaders (their span of control).");
   add("span mean", m.span.mean, "Average number of direct reports per leader.");
